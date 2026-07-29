@@ -34,6 +34,41 @@ function downloadDataUrl(dataUrl, filename) {
   a.href = dataUrl; a.download = filename; a.click();
 }
 
+// ── Panel toggle tab ───────────────────────────────────────────────────────────
+function PanelTab({ side, open, onToggle }) {
+  const isLeft = side === 'left';
+  return (
+    <button
+      onClick={onToggle}
+      title={open ? '패널 닫기' : '패널 열기'}
+      style={{
+        flexShrink: 0, width: '16px',
+        background: '#2a2a2a',
+        border: 'none',
+        borderLeft:  isLeft  ? 'none' : '1px solid #1a1a1a',
+        borderRight: isLeft  ? '1px solid #1a1a1a' : 'none',
+        cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#555', padding: 0,
+        transition: 'color 0.15s, background 0.15s',
+        zIndex: 5,
+        touchAction: 'manipulation',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.color = '#ccc'; e.currentTarget.style.background = '#383838'; }}
+      onMouseLeave={e => { e.currentTarget.style.color = '#555'; e.currentTarget.style.background = '#2a2a2a'; }}
+    >
+      {/* Chevron - direction flips based on panel state */}
+      <svg width="8" height="16" viewBox="0 0 8 16" fill="currentColor"
+        style={{ transform: isLeft ? (open ? 'none' : 'scaleX(-1)') : (open ? 'none' : 'scaleX(-1)'), transition: 'transform 0.2s' }}>
+        {isLeft
+          ? <polyline points="6,2 2,8 6,14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          : <polyline points="2,2 6,8 2,14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        }
+      </svg>
+    </button>
+  );
+}
+
 export default function App() {
   const [pages, setPages] = useState(() => [makePage(), makePage(), makePage(), makePage()]);
   const [activePage, setActivePage] = useState(0);
@@ -47,6 +82,8 @@ export default function App() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResultUrl, setAiResultUrl] = useState(null);
   const [showChat, setShowChat] = useState(false);
+  const [showPageStrip, setShowPageStrip] = useState(true);
+  const [showRightPanel, setShowRightPanel] = useState(true);
   const webtoonRef = useRef(null);
 
   const cur = pages[activePage];
@@ -59,8 +96,7 @@ export default function App() {
     setActivePage(idx); webtoonRef.current?.scrollToPage(idx);
   }, []);
 
-  const addPage = useCallback(() => { setPages(prev => [...prev, makePage()]); }, []);
-
+  const addPage    = useCallback(() => { setPages(prev => [...prev, makePage()]); }, []);
   const deletePage = useCallback((idx) => {
     if (pages.length <= 1) return;
     setPages(prev => prev.filter((_, i) => i !== idx));
@@ -93,7 +129,6 @@ export default function App() {
     setPages(prev => prev.map((p, i) => i === idx ? { ...p, thumbnail: url } : p));
   }, []);
 
-  // ── Save ──────────────────────────────────────────────────────────────────
   const handleSavePage = useCallback(() => {
     const dataUrl = webtoonRef.current?.flatten();
     if (!dataUrl) return;
@@ -109,13 +144,10 @@ export default function App() {
     });
   }, []);
 
-  // ── Eyedropper callback ───────────────────────────────────────────────────
   const handleColorPick = useCallback((hex) => {
-    setColor(hex);
-    setTool('pen'); // revert to pen after picking
+    setColor(hex); setTool('pen');
   }, []);
 
-  // ── AI ────────────────────────────────────────────────────────────────────
   const handleAI = useCallback(async () => {
     setAiLoading(true);
     try {
@@ -131,7 +163,6 @@ export default function App() {
     }
   }, [styleIndex, updateCur]);
 
-  // ── Keyboard shortcuts ────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -157,7 +188,18 @@ export default function App() {
   }, [handleSavePage]);
 
   return (
-    <div className="flex flex-col overflow-hidden" style={{ height: '100dvh', background: '#505050' }}>
+    <div className="flex flex-col overflow-hidden"
+      style={{
+        height: '100dvh',
+        background: '#505050',
+        // Safe area for iPad notch / home indicator
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        paddingLeft: 'env(safe-area-inset-left, 0px)',
+        paddingRight: 'env(safe-area-inset-right, 0px)',
+        boxSizing: 'border-box',
+      }}>
+
       <DrawingToolbar
         tool={tool} setTool={setTool}
         onUndo={() => webtoonRef.current?.undo()}
@@ -168,11 +210,25 @@ export default function App() {
         fillShapes={fillShapes} setFillShapes={setFillShapes}
         onSavePage={handleSavePage} onSaveAll={handleSaveAll}
       />
+
       <div className="flex flex-1 overflow-hidden">
-        <PageStrip
-          pages={pages} activePage={activePage}
-          onSelect={switchPage} onAdd={addPage} onDelete={deletePage}
-        />
+
+        {/* ── Page strip ─────────────────────────────────────────────────── */}
+        <div style={{
+          width: showPageStrip ? '60px' : '0',
+          transition: 'width 0.22s ease',
+          overflow: 'hidden',
+          flexShrink: 0,
+        }}>
+          <div style={{ width: '60px', height: '100%' }}>
+            <PageStrip pages={pages} activePage={activePage}
+              onSelect={switchPage} onAdd={addPage} onDelete={deletePage} />
+          </div>
+        </div>
+
+        <PanelTab side="left" open={showPageStrip} onToggle={() => setShowPageStrip(v => !v)} />
+
+        {/* ── Canvas ─────────────────────────────────────────────────────── */}
         <WebtoonView
           ref={webtoonRef}
           pages={pages} activePage={activePage} setActivePage={setActivePage}
@@ -181,36 +237,47 @@ export default function App() {
           onThumbnailUpdate={handleThumbnailUpdate}
           onColorPick={handleColorPick}
         />
-        <RightPanel
-          brushSize={brushSize} setBrushSize={setBrushSize}
-          brushOpacity={brushOpacity} setBrushOpacity={setBrushOpacity}
-          color={color} setColor={setColor}
-          layers={cur.layers} activeLayerId={cur.activeLayerId}
-          onSetActiveLayer={setActiveLayerId}
-          onAddLayer={addLayer} onDeleteLayer={deleteLayer}
-          onToggleVisibility={toggleVisibility} onSetOpacity={setLayerOpacity}
-        />
+
+        <PanelTab side="right" open={showRightPanel} onToggle={() => setShowRightPanel(v => !v)} />
+
+        {/* ── Right panel ────────────────────────────────────────────────── */}
+        <div style={{
+          width: showRightPanel ? '168px' : '0',
+          transition: 'width 0.22s ease',
+          overflow: 'hidden',
+          flexShrink: 0,
+        }}>
+          <div style={{ width: '168px', height: '100%' }}>
+            <RightPanel
+              brushSize={brushSize} setBrushSize={setBrushSize}
+              brushOpacity={brushOpacity} setBrushOpacity={setBrushOpacity}
+              color={color} setColor={setColor}
+              layers={cur.layers} activeLayerId={cur.activeLayerId}
+              onSetActiveLayer={setActiveLayerId}
+              onAddLayer={addLayer} onDeleteLayer={deleteLayer}
+              onToggleVisibility={toggleVisibility} onSetOpacity={setLayerOpacity}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* AI Chat FAB — always visible, bottom-left */}
+      {/* ── AI Chat FAB ──────────────────────────────────────────────────── */}
       <button
         onClick={() => setShowChat(v => !v)}
         title="AI와 대화하기"
         style={{
           position: 'fixed',
-          bottom: '24px',
-          left: showChat ? '408px' : '72px',
-          width: '52px', height: '52px',
-          borderRadius: '50%',
+          bottom: `calc(24px + env(safe-area-inset-bottom, 0px))`,
+          left: showChat ? '408px' : '88px',
+          width: '52px', height: '52px', borderRadius: '50%',
           background: showChat ? '#ea580c' : '#f97316',
           border: '2px solid rgba(0,0,0,0.3)',
           boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
           cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 160,
-          transition: 'left 0.25s, background 0.15s',
-          fontSize: '22px',
-          lineHeight: 1,
+          zIndex: 160, transition: 'left 0.25s, background 0.15s',
+          fontSize: '22px', lineHeight: 1,
+          touchAction: 'manipulation',
         }}
       >
         {showChat ? '✕' : '💬'}
