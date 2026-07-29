@@ -167,7 +167,6 @@ export default function App() {
         zoom={zoom} setZoom={setZoom}
         fillShapes={fillShapes} setFillShapes={setFillShapes}
         onSavePage={handleSavePage} onSaveAll={handleSaveAll}
-        showChat={showChat} setShowChat={setShowChat}
       />
       <div className="flex flex-1 overflow-hidden">
         <PageStrip
@@ -192,6 +191,30 @@ export default function App() {
           onToggleVisibility={toggleVisibility} onSetOpacity={setLayerOpacity}
         />
       </div>
+
+      {/* AI Chat FAB — always visible, bottom-left */}
+      <button
+        onClick={() => setShowChat(v => !v)}
+        title="AI와 대화하기"
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          left: showChat ? '408px' : '72px',
+          width: '52px', height: '52px',
+          borderRadius: '50%',
+          background: showChat ? '#ea580c' : '#f97316',
+          border: '2px solid rgba(0,0,0,0.3)',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+          cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 160,
+          transition: 'left 0.25s, background 0.15s',
+          fontSize: '22px',
+          lineHeight: 1,
+        }}
+      >
+        {showChat ? '✕' : '💬'}
+      </button>
 
       {showChat && (
         <AIChat
