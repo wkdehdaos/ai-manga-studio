@@ -1,10 +1,9 @@
 import { forwardRef, useRef, useEffect, useCallback, useImperativeHandle, useState } from 'react';
 
 const W = 600, H = 848;
-
 const SHAPE_TOOLS = new Set(['line', 'rect', 'circle', 'arrow']);
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function hexToRgb(hex) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -18,47 +17,31 @@ function rgbToHex(r, g, b) {
 function floodFill(displayCtx, layerCtx, startX, startY, fillColor, opacity, tolerance = 25) {
   startX = Math.round(startX); startY = Math.round(startY);
   if (startX < 0 || startX >= W || startY < 0 || startY >= H) return;
-
   const [fillR, fillG, fillB] = hexToRgb(fillColor);
   const fillA = Math.round(opacity * 255);
-
-  // Read boundary from composite (what user sees)
   const cData = displayCtx.getImageData(0, 0, W, H).data;
-  // Write to active layer
   const layerImgData = layerCtx.getImageData(0, 0, W, H);
   const lData = layerImgData.data;
-
   const si = (startY * W + startX) * 4;
   const tr = cData[si], tg = cData[si + 1], tb = cData[si + 2];
-
   if (tr === fillR && tg === fillG && tb === fillB) return;
-
   const visited = new Uint8Array(W * H);
   const stack = [startY * W + startX];
   visited[stack[0]] = 1;
-
   while (stack.length) {
     const pos = stack.pop();
     const x = pos % W, y = (pos / W) | 0;
     const li = pos * 4;
     lData[li] = fillR; lData[li + 1] = fillG; lData[li + 2] = fillB; lData[li + 3] = fillA;
-
-    const neighbors = [
-      x > 0     ? pos - 1 : -1,
-      x < W - 1 ? pos + 1 : -1,
-      y > 0     ? pos - W : -1,
-      y < H - 1 ? pos + W : -1,
-    ];
+    const neighbors = [x > 0 ? pos-1 : -1, x < W-1 ? pos+1 : -1, y > 0 ? pos-W : -1, y < H-1 ? pos+W : -1];
     for (const n of neighbors) {
       if (n < 0 || visited[n]) continue;
       const ni = n * 4;
       if (Math.abs(cData[ni]-tr) + Math.abs(cData[ni+1]-tg) + Math.abs(cData[ni+2]-tb) <= tolerance * 3) {
-        visited[n] = 1;
-        stack.push(n);
+        visited[n] = 1; stack.push(n);
       }
     }
   }
-
   layerCtx.putImageData(layerImgData, 0, 0);
 }
 
@@ -69,12 +52,10 @@ function drawShape(ctx, tool, s, e, color, size, opacity, fill) {
   ctx.globalAlpha = opacity;
   ctx.beginPath();
   const dx = e.x - s.x, dy = e.y - s.y;
-
   if (tool === 'line') {
     ctx.moveTo(s.x, s.y); ctx.lineTo(e.x, e.y); ctx.stroke();
   } else if (tool === 'arrow') {
-    const angle = Math.atan2(dy, dx);
-    const hl = Math.max(size * 4, 16);
+    const angle = Math.atan2(dy, dx), hl = Math.max(size * 4, 16);
     ctx.moveTo(s.x, s.y); ctx.lineTo(e.x, e.y); ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(e.x, e.y);
@@ -85,8 +66,7 @@ function drawShape(ctx, tool, s, e, color, size, opacity, fill) {
     fill ? ctx.fillRect(s.x, s.y, dx, dy) : ctx.strokeRect(s.x, s.y, dx, dy);
   } else if (tool === 'circle') {
     const cx = (s.x + e.x) / 2, cy = (s.y + e.y) / 2;
-    const rx = Math.max(Math.abs(dx) / 2, 1), ry = Math.max(Math.abs(dy) / 2, 1);
-    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, cy, Math.max(Math.abs(dx)/2,1), Math.max(Math.abs(dy)/2,1), 0, 0, Math.PI*2);
     fill ? ctx.fill() : ctx.stroke();
   }
   ctx.restore();
@@ -96,40 +76,49 @@ function drawShape(ctx, tool, s, e, color, size, opacity, fill) {
 
 const DrawingCanvas = forwardRef(function DrawingCanvas(
   { layers, activeLayerId, tool, color, brushSize, brushOpacity = 1, fillShapes = false,
-    initialLayerData, onStrokeEnd, onColorPick },
+    initialLayerData, onStrokeEnd, onColorPick, onZoom },
   ref
 ) {
-  const displayRef = useRef(null);
-  const previewRef = useRef(null);
+  const displayRef  = useRef(null);
+  const previewRef  = useRef(null);
   const layerMapRef = useRef(new Map());
 
-  // Always-current refs (avoid stale closures in pointer handlers)
   const layersRef = useRef(layers);
   const activeRef = useRef(activeLayerId);
-  const toolRef = useRef(tool);
-  const colorRef = useRef(color);
-  const sizeRef = useRef(brushSize);
-  const opacRef = useRef(brushOpacity);
-  const fillRef = useRef(fillShapes);
+  const toolRef   = useRef(tool);
+  const colorRef  = useRef(color);
+  const sizeRef   = useRef(brushSize);
+  const opacRef   = useRef(brushOpacity);
+  const fillRef   = useRef(fillShapes);
+  const onZoomRef = useRef(onZoom);
 
-  useEffect(() => { layersRef.current = layers; }, [layers]);
-  useEffect(() => { activeRef.current = activeLayerId; }, [activeLayerId]);
-  useEffect(() => { toolRef.current = tool; }, [tool]);
-  useEffect(() => { colorRef.current = color; }, [color]);
-  useEffect(() => { sizeRef.current = brushSize; }, [brushSize]);
-  useEffect(() => { opacRef.current = brushOpacity; }, [brushOpacity]);
-  useEffect(() => { fillRef.current = fillShapes; }, [fillShapes]);
+  useEffect(() => { layersRef.current = layers; },          [layers]);
+  useEffect(() => { activeRef.current = activeLayerId; },   [activeLayerId]);
+  useEffect(() => { toolRef.current = tool; },              [tool]);
+  useEffect(() => { colorRef.current = color; },            [color]);
+  useEffect(() => { sizeRef.current = brushSize; },         [brushSize]);
+  useEffect(() => { opacRef.current = brushOpacity; },      [brushOpacity]);
+  useEffect(() => { fillRef.current = fillShapes; },        [fillShapes]);
+  useEffect(() => { onZoomRef.current = onZoom; },          [onZoom]);
 
-  const drawing = useRef(false);
+  const drawing    = useRef(false);
   const shapeStart = useRef(null);
-  const undoStack = useRef([]);
-  const redoStack = useRef([]);
-  const rafRef = useRef(null);
+  const undoStack  = useRef([]);
+  const redoStack  = useRef([]);
+  const rafRef     = useRef(null);
 
-  // Text tool state
-  const [textPos, setTextPos] = useState(null); // { pctX, pctY, canvasX, canvasY }
+  // ── multi-touch / pinch state ────────────────────────────────────────────
+  const activePointers  = useRef(new Map()); // pointerId → {x,y}
+  const pinchPrevDist   = useRef(null);
+  const isPinching      = useRef(false);
+  // Two-finger tap detection
+  const tapStartTime    = useRef(null);
+  const tapStartPts     = useRef([]);
 
-  // ── composite ──────────────────────────────────────────────────────────────
+  // Text tool overlay
+  const [textPos, setTextPos] = useState(null);
+
+  // ── composite ────────────────────────────────────────────────────────────
   const composite = useCallback(() => {
     const dc = displayRef.current; if (!dc) return;
     const ctx = dc.getContext('2d');
@@ -147,7 +136,7 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
     rafRef.current = requestAnimationFrame(() => { composite(); rafRef.current = null; });
   }, [composite]);
 
-  // ── init ──────────────────────────────────────────────────────────────────
+  // ── init ────────────────────────────────────────────────────────────────
   useEffect(() => {
     for (const layer of layers) {
       const lc = document.createElement('canvas'); lc.width = W; lc.height = H;
@@ -181,7 +170,7 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
     scheduleComposite();
   }, [layers, scheduleComposite]);
 
-  // ── utils ─────────────────────────────────────────────────────────────────
+  // ── utils ────────────────────────────────────────────────────────────────
   const getPos = (e) => {
     const rect = displayRef.current.getBoundingClientRect();
     return {
@@ -198,58 +187,92 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
     redoStack.current = [];
   }, []);
 
-  // ── pointer handlers ──────────────────────────────────────────────────────
+  const cancelDraw = useCallback(() => {
+    if (!drawing.current) return;
+    drawing.current = false;
+    // Revert incomplete stroke
+    const last = undoStack.current.pop();
+    if (last) {
+      const lc = layerMapRef.current.get(last.id);
+      if (lc) lc.getContext('2d').putImageData(last.data, 0, 0);
+      composite();
+    }
+    previewRef.current?.getContext('2d').clearRect(0, 0, W, H);
+    shapeStart.current = null;
+  }, [composite]);
+
+  // ── pointer handlers ─────────────────────────────────────────────────────
   const onPointerDown = useCallback((e) => {
-    if (e.button !== 0) return;
+    const pt = { x: e.clientX, y: e.clientY };
+    activePointers.current.set(e.pointerId, pt);
+
+    // ── Two-finger pinch / tap detection ─────────────────────────────────
+    if (activePointers.current.size === 2) {
+      cancelDraw(); // abort single-finger stroke
+      isPinching.current = true;
+      const pts = [...activePointers.current.values()];
+      pinchPrevDist.current = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      // Record start for tap detection
+      tapStartTime.current = Date.now();
+      tapStartPts.current = pts.map(p => ({ ...p }));
+      e.preventDefault();
+      return;
+    }
+    if (activePointers.current.size > 2) { e.preventDefault(); return; }
+
+    // ── Single pointer — drawing ──────────────────────────────────────────
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.preventDefault();
     displayRef.current?.setPointerCapture(e.pointerId);
     const pos = getPos(e);
 
-    // Eyedropper
     if (toolRef.current === 'eyedropper') {
-      const dc = displayRef.current;
-      const pixel = dc.getContext('2d').getImageData(Math.round(pos.x), Math.round(pos.y), 1, 1).data;
-      onColorPick?.(rgbToHex(pixel[0], pixel[1], pixel[2]));
+      const px = displayRef.current.getContext('2d').getImageData(Math.round(pos.x), Math.round(pos.y), 1, 1).data;
+      onColorPick?.(rgbToHex(px[0], px[1], px[2]));
       return;
     }
-
-    // Flood fill
     if (toolRef.current === 'fill') {
       saveUndo();
-      const dc = displayRef.current;
-      const lc = layerMapRef.current.get(activeRef.current); if (!lc) return;
-      floodFill(dc.getContext('2d'), lc.getContext('2d'), pos.x, pos.y, colorRef.current, opacRef.current);
-      composite();
-      onStrokeEnd?.();
-      return;
+      floodFill(
+        displayRef.current.getContext('2d'),
+        layerMapRef.current.get(activeRef.current)?.getContext('2d'),
+        pos.x, pos.y, colorRef.current, opacRef.current
+      );
+      composite(); onStrokeEnd?.(); return;
     }
-
-    // Text
     if (toolRef.current === 'text') {
       const rect = displayRef.current.getBoundingClientRect();
-      setTextPos({
-        pctX: (pos.x / W) * 100,
-        pctY: (pos.y / H) * 100,
-        canvasX: pos.x,
-        canvasY: pos.y,
-        screenFontSize: sizeRef.current * 4 * (rect.width / W),
-      });
+      setTextPos({ pctX: (pos.x/W)*100, pctY: (pos.y/H)*100, canvasX: pos.x, canvasY: pos.y,
+        screenFontSize: sizeRef.current * 4 * (rect.width / W) });
       return;
     }
-
-    // Shapes
     if (SHAPE_TOOLS.has(toolRef.current)) {
       saveUndo(); shapeStart.current = pos; drawing.current = true; return;
     }
-
-    // Freehand pen / eraser
     saveUndo(); drawing.current = true;
     const lc = layerMapRef.current.get(activeRef.current); if (!lc) return;
     const ctx = lc.getContext('2d');
     ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
-  }, [saveUndo, composite, onStrokeEnd, onColorPick]);
+  }, [saveUndo, cancelDraw, composite, onStrokeEnd, onColorPick]);
 
   const onPointerMove = useCallback((e) => {
+    if (activePointers.current.has(e.pointerId)) {
+      activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
+    // ── Pinch zoom ────────────────────────────────────────────────────────
+    if (isPinching.current && activePointers.current.size >= 2) {
+      e.preventDefault();
+      const pts = [...activePointers.current.values()];
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      if (pinchPrevDist.current > 0 && dist > 0) {
+        const scale = dist / pinchPrevDist.current;
+        onZoomRef.current?.(z => parseFloat(Math.max(0.25, Math.min(4, z * scale)).toFixed(3)));
+      }
+      pinchPrevDist.current = dist;
+      return;
+    }
+
     if (!drawing.current) return;
     e.preventDefault();
     const pos = getPos(e);
@@ -261,7 +284,6 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
       drawShape(pctx, toolRef.current, shapeStart.current, pos, colorRef.current, sizeRef.current, opacRef.current, fillRef.current);
       return;
     }
-
     const lc = layerMapRef.current.get(activeRef.current); if (!lc) return;
     const ctx = lc.getContext('2d');
     const { x, y, pressure } = pos;
@@ -279,19 +301,53 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
   }, [scheduleComposite]);
 
   const onPointerUp = useCallback((e) => {
-    if (!drawing.current) return;
-    drawing.current = false;
-    displayRef.current?.releasePointerCapture(e?.pointerId);
+    activePointers.current.delete(e.pointerId);
 
-    if (SHAPE_TOOLS.has(toolRef.current) && shapeStart.current) {
+    // ── End pinch — check for 2-finger tap (undo) ─────────────────────────
+    if (isPinching.current && activePointers.current.size < 2) {
+      isPinching.current = false;
+      pinchPrevDist.current = null;
+
+      // Two-finger tap = undo
+      if (tapStartTime.current && Date.now() - tapStartTime.current < 350) {
+        const pts = [...activePointers.current.values()];
+        const startPts = tapStartPts.current;
+        const moved = startPts.some((sp, i) => {
+          const cp = i === 0 ? { x: e.clientX, y: e.clientY } : (pts[0] ?? { x: sp.x, y: sp.y });
+          return Math.hypot(cp.x - sp.x, cp.y - sp.y) > 20;
+        });
+        if (!moved) {
+          // Trigger undo via ref
+          const last = undoStack.current.pop();
+          if (last) {
+            const lc = layerMapRef.current.get(last.id);
+            if (lc) {
+              redoStack.current.push({ id: last.id, data: lc.getContext('2d').getImageData(0, 0, W, H) });
+              lc.getContext('2d').putImageData(last.data, 0, 0);
+              composite();
+            }
+          }
+        }
+      }
+      tapStartTime.current = null;
+    }
+
+    if (activePointers.current.size > 0) return;
+
+    displayRef.current?.releasePointerCapture?.(e.pointerId);
+
+    if (SHAPE_TOOLS.has(toolRef.current) && shapeStart.current && drawing.current) {
       const pos = getPos(e);
       const lc = layerMapRef.current.get(activeRef.current);
       if (lc) drawShape(lc.getContext('2d'), toolRef.current, shapeStart.current, pos, colorRef.current, sizeRef.current, opacRef.current, fillRef.current);
       shapeStart.current = null;
       previewRef.current?.getContext('2d').clearRect(0, 0, W, H);
+      drawing.current = false;
       composite(); onStrokeEnd?.(); return;
     }
 
+    if (!drawing.current) return;
+    drawing.current = false;
     const lc = layerMapRef.current.get(activeRef.current);
     if (lc) {
       const ctx = lc.getContext('2d');
@@ -300,7 +356,7 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
     onStrokeEnd?.();
   }, [composite, onStrokeEnd]);
 
-  // ── text commit ───────────────────────────────────────────────────────────
+  // ── text commit ────────────────────────────────────────────────────────
   const commitText = useCallback((text) => {
     if (text && textPos) {
       const lc = layerMapRef.current.get(activeRef.current);
@@ -309,8 +365,7 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
         const ctx = lc.getContext('2d');
         const fs = sizeRef.current * 4;
         ctx.font = `bold ${fs}px sans-serif`;
-        ctx.fillStyle = colorRef.current;
-        ctx.globalAlpha = opacRef.current;
+        ctx.fillStyle = colorRef.current; ctx.globalAlpha = opacRef.current;
         ctx.fillText(text, textPos.canvasX, textPos.canvasY + fs);
         ctx.globalAlpha = 1;
         composite(); onStrokeEnd?.();
@@ -319,7 +374,7 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
     setTextPos(null);
   }, [textPos, saveUndo, composite, onStrokeEnd]);
 
-  // ── imperative handle ─────────────────────────────────────────────────────
+  // ── imperative handle ──────────────────────────────────────────────────
   useImperativeHandle(ref, () => ({
     undo() {
       const last = undoStack.current.pop(); if (!last) return;
@@ -367,35 +422,19 @@ const DrawingCanvas = forwardRef(function DrawingCanvas(
     <div style={{ position: 'relative', width: '100%', lineHeight: 0, cursor, boxShadow: '0 6px 30px rgba(0,0,0,0.6)' }}>
       <canvas ref={displayRef} width={W} height={H} style={canvasStyle}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp} onPointerLeave={onPointerUp} />
+        onPointerUp={onPointerUp} onPointerCancel={onPointerUp} />
 
-      {/* Shape preview overlay */}
       <canvas ref={previewRef} width={W} height={H}
         style={{ ...canvasStyle, position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }} />
 
-      {/* Text input overlay */}
       {textPos && (
-        <div style={{
-          position: 'absolute',
-          left: `${textPos.pctX}%`, top: `${textPos.pctY}%`,
-          transform: 'translate(-4px, 0)',
-          zIndex: 10,
-        }}>
-          <input
-            autoFocus
-            placeholder="텍스트 입력 후 Enter"
+        <div style={{ position: 'absolute', left: `${textPos.pctX}%`, top: `${textPos.pctY}%`, transform: 'translate(-4px,0)', zIndex: 10 }}>
+          <input autoFocus placeholder="텍스트 입력 후 Enter"
             style={{
-              background: 'rgba(255,255,255,0.95)',
-              border: '2px solid #f97316',
-              borderRadius: '4px',
-              padding: '2px 6px',
-              fontSize: `${Math.round(textPos.screenFontSize)}px`,
-              color: color,
-              fontWeight: 'bold',
-              fontFamily: 'sans-serif',
-              outline: 'none',
-              minWidth: '80px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              background: 'rgba(255,255,255,0.95)', border: '2px solid #f97316', borderRadius: '4px',
+              padding: '2px 6px', fontSize: `${Math.round(textPos.screenFontSize)}px`,
+              color: color, fontWeight: 'bold', fontFamily: 'sans-serif', outline: 'none',
+              minWidth: '80px', boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
             }}
             onKeyDown={e => {
               if (e.key === 'Enter') commitText(e.target.value);

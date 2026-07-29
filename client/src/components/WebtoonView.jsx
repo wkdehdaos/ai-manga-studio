@@ -60,6 +60,24 @@ const WebtoonView = forwardRef(function WebtoonView({
     return () => el.removeEventListener('wheel', handler);
   }, [setZoom]);
 
+  // 3-finger tap → redo  (2-finger tap is handled inside DrawingCanvas)
+  useEffect(() => {
+    const el = containerRef.current; if (!el) return;
+    let touchCount = 0, touchTime = 0;
+    const onStart = (e) => { touchCount = e.touches.length; touchTime = Date.now(); };
+    const onEnd   = (e) => {
+      if (e.touches.length > 0) return;
+      if (touchCount === 3 && Date.now() - touchTime < 400)
+        canvasRefs.current[activePage]?.redo();
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchend',   onEnd,   { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchend',   onEnd);
+    };
+  }, [activePage]);
+
   // IntersectionObserver: track active page
   useEffect(() => {
     const container = containerRef.current; if (!container) return;
@@ -127,6 +145,7 @@ const WebtoonView = forwardRef(function WebtoonView({
               initialLayerData={page.layerData}
               onStrokeEnd={() => handleStrokeEnd(i)}
               onColorPick={onColorPick}
+              onZoom={setZoom}
             />
           </div>
         ))}
