@@ -3,6 +3,7 @@ import WebtoonView from './components/WebtoonView';
 import DrawingToolbar from './components/DrawingToolbar';
 import PageStrip from './components/PageStrip';
 import RightPanel from './components/RightPanel';
+import AIChat from './components/AIChat';
 import { generateImage } from './lib/api';
 
 export const STYLE_PRESETS = [
@@ -45,6 +46,7 @@ export default function App() {
   const [zoom, setZoom] = useState(1);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResultUrl, setAiResultUrl] = useState(null);
+  const [showChat, setShowChat] = useState(false);
   const webtoonRef = useRef(null);
 
   const cur = pages[activePage];
@@ -165,6 +167,7 @@ export default function App() {
         zoom={zoom} setZoom={setZoom}
         fillShapes={fillShapes} setFillShapes={setFillShapes}
         onSavePage={handleSavePage} onSaveAll={handleSaveAll}
+        showChat={showChat} setShowChat={setShowChat}
       />
       <div className="flex flex-1 overflow-hidden">
         <PageStrip
@@ -189,6 +192,13 @@ export default function App() {
           onToggleVisibility={toggleVisibility} onSetOpacity={setLayerOpacity}
         />
       </div>
+
+      {showChat && (
+        <AIChat
+          onImageGenerated={(url) => { setAiResultUrl(url); }}
+          onClose={() => setShowChat(false)}
+        />
+      )}
 
       {aiResultUrl && (
         <div style={{

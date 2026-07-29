@@ -2,7 +2,7 @@ import {
   Pen, Eraser, Undo2, Redo2, Sparkles, ZoomIn, ZoomOut,
   Minus, Square, Circle, MoveRight,
   PaintBucket, Type, Pipette,
-  Download, FolderDown,
+  Download, FolderDown, MessageCircle,
 } from 'lucide-react';
 import { STYLE_PRESETS } from '../App';
 
@@ -34,6 +34,7 @@ export default function DrawingToolbar({
   zoom, setZoom,
   fillShapes, setFillShapes,
   onSavePage, onSaveAll,
+  showChat, setShowChat,
 }) {
   const zoomIn    = () => setZoom(z => parseFloat(Math.min(4,    (z + 0.25).toFixed(2))));
   const zoomOut   = () => setZoom(z => parseFloat(Math.max(0.25, (z - 0.25).toFixed(2))));
@@ -133,6 +134,24 @@ export default function DrawingToolbar({
         style={{ background: '#4a4a4a', border: '1px solid #555', color: '#fff', fontSize: '11px', borderRadius: '4px', padding: '3px 6px', height: '28px', outline: 'none', flexShrink: 0 }}>
         {STYLE_PRESETS.map((s, i) => <option key={i} value={i}>{s.label}</option>)}
       </select>
+
+      {/* AI Chat toggle */}
+      <button
+        onClick={() => setShowChat(v => !v)}
+        title="AI와 대화하기"
+        style={{
+          display: 'flex', alignItems: 'center', gap: '5px',
+          padding: '0 10px', height: '30px', marginLeft: '4px',
+          background: showChat ? '#f97316' : '#4a4a4a',
+          color: '#fff', fontWeight: 700, fontSize: '12px',
+          border: `1.5px solid ${showChat ? '#000' : '#555'}`,
+          borderRadius: '4px', cursor: 'pointer', flexShrink: 0,
+          transition: 'background 0.15s',
+        }}
+      >
+        <MessageCircle size={13} />
+        AI 대화
+      </button>
 
       {/* AI Complete */}
       <button onClick={onAI} disabled={aiLoading}
