@@ -11,6 +11,7 @@ const WebtoonView = forwardRef(function WebtoonView({
   color,
   brushSize,
   brushOpacity,
+  fillShapes,
   zoom,
   setZoom,
   onThumbnailUpdate,
@@ -145,6 +146,7 @@ const WebtoonView = forwardRef(function WebtoonView({
               color={color}
               brushSize={brushSize}
               brushOpacity={brushOpacity}
+              fillShapes={fillShapes}
               initialLayerData={page.layerData}
               onStrokeEnd={() => handleStrokeEnd(i)}
             />

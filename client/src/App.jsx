@@ -36,6 +36,7 @@ export default function App() {
   const [brushSize, setBrushSize] = useState(6);
   const [brushOpacity, setBrushOpacity] = useState(1);
   const [styleIndex, setStyleIndex] = useState(0);
+  const [fillShapes, setFillShapes] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResultUrl, setAiResultUrl] = useState(null);
@@ -116,6 +117,9 @@ export default function App() {
       if (e.ctrlKey && e.key === '0') { e.preventDefault(); setZoom(1); }
       if (!e.ctrlKey && !e.metaKey && e.key === 'b') setTool('pen');
       if (!e.ctrlKey && !e.metaKey && e.key === 'e') setTool('eraser');
+      if (!e.ctrlKey && !e.metaKey && e.key === 'l') setTool('line');
+      if (!e.ctrlKey && !e.metaKey && e.key === 'r') setTool('rect');
+      if (!e.ctrlKey && !e.metaKey && e.key === 'o') setTool('circle');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -130,6 +134,7 @@ export default function App() {
         onAI={handleAI} aiLoading={aiLoading}
         styleIndex={styleIndex} setStyleIndex={setStyleIndex}
         zoom={zoom} setZoom={setZoom}
+        fillShapes={fillShapes} setFillShapes={setFillShapes}
       />
       <div className="flex flex-1 overflow-hidden">
         <PageStrip
@@ -142,6 +147,7 @@ export default function App() {
           activePage={activePage}
           setActivePage={setActivePage}
           tool={tool} color={color} brushSize={brushSize} brushOpacity={brushOpacity}
+          fillShapes={fillShapes}
           zoom={zoom} setZoom={setZoom}
           onThumbnailUpdate={handleThumbnailUpdate}
         />
