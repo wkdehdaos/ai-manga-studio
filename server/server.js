@@ -1,10 +1,12 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+// Load .env from same directory as server.js (works both locally and on Railway)
+config({ path: join(__dirname, '.env') });
 const app = express();
 
 const corsOrigin = process.env.CORS_ORIGIN

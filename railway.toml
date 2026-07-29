@@ -1,7 +1,4 @@
-[build]
-builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
-
 [deploy]
+startCommand = "node server/server.js"
 healthcheckPath = "/health"
 restartPolicyType = "always"
