@@ -7,9 +7,9 @@ import { generateImage } from './lib/api';
 
 export const STYLE_PRESETS = [
   { label: '소년만화 흑백 잉크', prompt: 'shounen manga style, black and white ink, bold linework, screentone shading, dynamic poses, high contrast' },
-  { label: '순정만화 파스텔', prompt: 'shoujo manga style, soft pastel colors, delicate linework, sparkles, romantic dreamy atmosphere' },
-  { label: '세이넨 다크판타지', prompt: 'seinen manga style, dark fantasy, detailed crosshatching, gritty atmosphere, muted earth tones' },
-  { label: '명랑 코미디 카툰', prompt: 'yonkoma comic style, bright cheerful colors, chibi characters, exaggerated expressions, bold outlines' },
+  { label: '순정만화 파스텔',    prompt: 'shoujo manga style, soft pastel colors, delicate linework, sparkles, romantic dreamy atmosphere' },
+  { label: '세이넨 다크판타지',  prompt: 'seinen manga style, dark fantasy, detailed crosshatching, gritty atmosphere, muted earth tones' },
+  { label: '명랑 코미디 카툰',   prompt: 'yonkoma comic style, bright cheerful colors, chibi characters, exaggerated expressions, bold outlines' },
 ];
 
 let _lid = 10;
@@ -17,15 +17,20 @@ const nid = () => ++_lid;
 
 function makeDefaultLayers() {
   return [
-    { id: nid(), name: '배경', visible: true, opacity: 1 },
+    { id: nid(), name: '배경',   visible: true, opacity: 1 },
     { id: nid(), name: '스케치', visible: true, opacity: 0.5 },
-    { id: nid(), name: '잉킹', visible: true, opacity: 1 },
+    { id: nid(), name: '잉킹',   visible: true, opacity: 1 },
   ];
 }
 
 function makePage() {
   const layers = makeDefaultLayers();
   return { layers, activeLayerId: layers[2].id, layerData: null, thumbnail: null, aiResult: null };
+}
+
+function downloadDataUrl(dataUrl, filename) {
+  const a = document.createElement('a');
+  a.href = dataUrl; a.download = filename; a.click();
 }
 
 export default function App() {
@@ -49,13 +54,10 @@ export default function App() {
   }, [activePage]);
 
   const switchPage = useCallback((idx) => {
-    setActivePage(idx);
-    webtoonRef.current?.scrollToPage(idx);
+    setActivePage(idx); webtoonRef.current?.scrollToPage(idx);
   }, []);
 
-  const addPage = useCallback(() => {
-    setPages(prev => [...prev, makePage()]);
-  }, []);
+  const addPage = useCallback(() => { setPages(prev => [...prev, makePage()]); }, []);
 
   const deletePage = useCallback((idx) => {
     if (pages.length <= 1) return;
@@ -89,16 +91,35 @@ export default function App() {
     setPages(prev => prev.map((p, i) => i === idx ? { ...p, thumbnail: url } : p));
   }, []);
 
+  // ── Save ──────────────────────────────────────────────────────────────────
+  const handleSavePage = useCallback(() => {
+    const dataUrl = webtoonRef.current?.flatten();
+    if (!dataUrl) return;
+    downloadDataUrl(dataUrl, `manga-page-${activePage + 1}.png`);
+  }, [activePage]);
+
+  const handleSaveAll = useCallback(() => {
+    const all = webtoonRef.current?.flattenAll();
+    if (!all) return;
+    all.forEach(({ index, dataUrl }) => {
+      if (!dataUrl) return;
+      setTimeout(() => downloadDataUrl(dataUrl, `manga-page-${index + 1}.png`), index * 400);
+    });
+  }, []);
+
+  // ── Eyedropper callback ───────────────────────────────────────────────────
+  const handleColorPick = useCallback((hex) => {
+    setColor(hex);
+    setTool('pen'); // revert to pen after picking
+  }, []);
+
+  // ── AI ────────────────────────────────────────────────────────────────────
   const handleAI = useCallback(async () => {
     setAiLoading(true);
     try {
       const sketchDataUrl = webtoonRef.current?.flatten();
       if (!sketchDataUrl) throw new Error('캔버스를 찾을 수 없습니다');
-      const result = await generateImage({
-        mode: 'sketch',
-        prompt: STYLE_PRESETS[styleIndex].prompt,
-        sketchDataUrl,
-      });
+      const result = await generateImage({ mode: 'sketch', prompt: STYLE_PRESETS[styleIndex].prompt, sketchDataUrl });
       setAiResultUrl(result.image);
       updateCur({ aiResult: result.image });
     } catch (err) {
@@ -108,22 +129,30 @@ export default function App() {
     }
   }, [styleIndex, updateCur]);
 
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if (e.ctrlKey && e.key === 'z') { e.preventDefault(); webtoonRef.current?.undo(); }
       if (e.ctrlKey && e.key === 'y') { e.preventDefault(); webtoonRef.current?.redo(); }
       if (e.ctrlKey && (e.key === '=' || e.key === '+')) { e.preventDefault(); setZoom(z => parseFloat(Math.min(4, z + 0.25).toFixed(2))); }
       if (e.ctrlKey && e.key === '-') { e.preventDefault(); setZoom(z => parseFloat(Math.max(0.25, z - 0.25).toFixed(2))); }
       if (e.ctrlKey && e.key === '0') { e.preventDefault(); setZoom(1); }
-      if (!e.ctrlKey && !e.metaKey && e.key === 'b') setTool('pen');
-      if (!e.ctrlKey && !e.metaKey && e.key === 'e') setTool('eraser');
-      if (!e.ctrlKey && !e.metaKey && e.key === 'l') setTool('line');
-      if (!e.ctrlKey && !e.metaKey && e.key === 'r') setTool('rect');
-      if (!e.ctrlKey && !e.metaKey && e.key === 'o') setTool('circle');
+      if (e.ctrlKey && e.key === 's') { e.preventDefault(); handleSavePage(); }
+      if (!e.ctrlKey && !e.metaKey) {
+        if (e.key === 'b') setTool('pen');
+        if (e.key === 'e') setTool('eraser');
+        if (e.key === 'l') setTool('line');
+        if (e.key === 'r') setTool('rect');
+        if (e.key === 'o') setTool('circle');
+        if (e.key === 'g') setTool('fill');
+        if (e.key === 't') setTool('text');
+        if (e.key === 'i') setTool('eyedropper');
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [handleSavePage]);
 
   return (
     <div className="flex flex-col overflow-hidden" style={{ height: '100dvh', background: '#505050' }}>
@@ -135,6 +164,7 @@ export default function App() {
         styleIndex={styleIndex} setStyleIndex={setStyleIndex}
         zoom={zoom} setZoom={setZoom}
         fillShapes={fillShapes} setFillShapes={setFillShapes}
+        onSavePage={handleSavePage} onSaveAll={handleSaveAll}
       />
       <div className="flex flex-1 overflow-hidden">
         <PageStrip
@@ -143,13 +173,11 @@ export default function App() {
         />
         <WebtoonView
           ref={webtoonRef}
-          pages={pages}
-          activePage={activePage}
-          setActivePage={setActivePage}
+          pages={pages} activePage={activePage} setActivePage={setActivePage}
           tool={tool} color={color} brushSize={brushSize} brushOpacity={brushOpacity}
-          fillShapes={fillShapes}
-          zoom={zoom} setZoom={setZoom}
+          fillShapes={fillShapes} zoom={zoom} setZoom={setZoom}
           onThumbnailUpdate={handleThumbnailUpdate}
+          onColorPick={handleColorPick}
         />
         <RightPanel
           brushSize={brushSize} setBrushSize={setBrushSize}
@@ -165,11 +193,9 @@ export default function App() {
       {aiResultUrl && (
         <div style={{
           position: 'fixed', bottom: '20px', right: '196px',
-          width: '240px',
-          background: '#2a2a2a', border: '1px solid #555',
+          width: '240px', background: '#2a2a2a', border: '1px solid #555',
           borderRadius: '8px', overflow: 'hidden',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-          zIndex: 100,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.7)', zIndex: 100,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderBottom: '1px solid #444' }}>
             <span style={{ fontSize: '11px', color: '#f97316', fontWeight: 900 }}>AI 완성 결과</span>
