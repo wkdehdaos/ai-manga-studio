@@ -1,6 +1,10 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
@@ -71,5 +75,10 @@ app.post('/api/generate-image', async (req, res) => {
 });
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
+
+// Serve React PWA (client)
+const publicDir = join(__dirname, 'public');
+app.use(express.static(publicDir));
+app.get('*', (_req, res) => res.sendFile(join(publicDir, 'index.html')));
 
 app.listen(PORT, () => console.log(`서버 실행 중: http://localhost:${PORT}`));
